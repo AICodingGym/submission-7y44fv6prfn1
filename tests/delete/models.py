@@ -124,10 +124,6 @@ class Base(models.Model):
     pass
 
 
-class RelToBase(models.Model):
-    base = models.ForeignKey(Base, models.DO_NOTHING)
-
-
 class PurgeRoot(models.Model):
     pass
 
@@ -140,3 +136,7 @@ class PurgeEntry(models.Model):
 
 class PurgeReference(models.Model):
     entry = models.ForeignKey(PurgeEntry, models.CASCADE, to_field='code')
+
+
+class RelToBase(models.Model):
+    base = models.ForeignKey(Base, models.DO_NOTHING)
