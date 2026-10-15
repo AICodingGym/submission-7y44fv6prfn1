@@ -126,3 +126,17 @@ class Base(models.Model):
 
 class RelToBase(models.Model):
     base = models.ForeignKey(Base, models.DO_NOTHING)
+
+
+class PurgeRoot(models.Model):
+    pass
+
+
+class PurgeEntry(models.Model):
+    root = models.ForeignKey(PurgeRoot, models.CASCADE)
+    code = models.CharField(max_length=30, unique=True)
+    payload = models.TextField()
+
+
+class PurgeReference(models.Model):
+    entry = models.ForeignKey(PurgeEntry, models.CASCADE, to_field='code')

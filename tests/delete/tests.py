@@ -531,3 +531,43 @@ class FastDeleteTests(TestCase):
                 User.objects.filter(avatar__desc='missing').delete(),
                 (0, {'delete.User': 0})
             )
+
+
+class DeferredCascadeTests(TestCase):
+    def make_chain(self):
+        from .models import PurgeRoot, PurgeEntry, PurgeReference
+        root = PurgeRoot.objects.create()
+        entry = PurgeEntry.objects.create(root=root, code='entry-key', payload='unneeded text')
+        PurgeReference.objects.create(entry=entry)
+        return root
+
+    def test_cascade_retains_non_primary_target_without_payload(self):
+        from django.test.utils import CaptureQueriesContext
+        from .models import PurgeEntry, PurgeReference
+        root = self.make_chain()
+        with CaptureQueriesContext(connection) as queries:
+            root.delete()
+        selects = [q['sql'] for q in queries if q['sql'].startswith('SELECT')]
+        self.assertEqual(len(selects), 1)
+        self.assertIn('"code"', selects[0])
+        self.assertNotIn('"payload"', selects[0])
+        self.assertFalse(PurgeEntry.objects.exists())
+        self.assertFalse(PurgeReference.objects.exists())
+
+    def test_delete_signals_receive_loaded_payload(self):
+        from .models import PurgeEntry
+        for signal in (models.signals.pre_delete, models.signals.post_delete):
+            with self.subTest(signal=signal):
+                root = self.make_chain()
+                seen = []
+
+                def receiver(sender, instance, **kwargs):
+                    self.assertNotIn('payload', instance.get_deferred_fields())
+                    seen.append(instance.payload)
+
+                signal.connect(receiver, sender=PurgeEntry)
+                try:
+                    root.delete()
+                finally:
+                    signal.disconnect(receiver, sender=PurgeEntry)
+                self.assertEqual(seen, ['unneeded text'])
